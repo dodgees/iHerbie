@@ -1,6 +1,9 @@
 import tweepy
 import re
 import os.path
+import sqlite3
+import datetime
+
 #import sys
 #sys.path.append('C:\Users\dodge_000\Desktop\iHerbieScripts')
 
@@ -78,7 +81,7 @@ else:
 		print 'The comparison failed'
 		print line
 
-print tweets_list[0].text.encode('utf-8')
+#print tweets_list[0].text.encode('utf-8')
 
 #Code to post and check tweet using files.
 
@@ -107,13 +110,20 @@ if os.path.isfile(fileName):
 ##for tweet in public_tweets:
 ##	print tweet.text.encode('utf-8')
 
-#user = api.get_user(screen_name='huskerextra')
+user = api.get_user(screen_name='huskerextra')
 
 #user_name = user.name
 #user_id = user.id
 
+#Formulat insert statements.
+conn = sqlite3.connect('iherbie.db')
+curs = conn.cursor()
+
+query = 'INSERT INTO tweets VALUES(?,?,?,?,?,?,?)'
+
 for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
-	pprint.pprint(status)
+	vals = [repr(str(user.name)), repr(str(status.text)), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
+	
 	print status.text.encode('utf-8')
 	print status.created_at
 	print status.favorite_count
@@ -121,6 +131,16 @@ for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
 	print status.source
 	print extract_link(status.text.encode('utf-8'))
 	print '\n\n\n'
+	print query
+	print vals
+	print '\n\n\n'
+
+	curs.execute(query, vals)
+
+conn.commit()
+conn.close()
+
+
 
 
 #Getting urls to post. cursor Needs to include include_entities=True.
