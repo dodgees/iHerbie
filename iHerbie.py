@@ -90,7 +90,7 @@ if os.path.isfile(fileName):
 	lines = f.readlines()
 	f.close()
 
-	newPost = True
+	newPost = False #True changed to ignore file processing.
 
 	for l in lines:
 		if l == tweets_list[0].text.encode('utf-8'):
@@ -122,7 +122,7 @@ curs = conn.cursor()
 query = 'INSERT INTO tweets VALUES(?,?,?,?,?,?,?)'
 
 for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
-	vals = [repr(str(user.name)), repr(str(status.text)), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
+	vals = [repr(str(user.name.encode('utf-8'))), repr(str(status.text.encode('utf-8'))), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
 	
 	print status.text.encode('utf-8')
 	print status.created_at
