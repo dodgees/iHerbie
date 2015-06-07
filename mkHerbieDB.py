@@ -15,8 +15,9 @@ CREATE TABLE tweets (
 	link 	TEXT,
 	favorite_count	INTEGER,
 	retweet_count	INTEGER,
-	date_posted	TEXT PRIMARY KEY,
-	date_saved 	TEXT
+	date_posted	TEXT,
+	date_saved 	TEXT,
+	PRIMARY KEY (handle, status, date_posted)
 	)
 	'''	)
 
