@@ -5,7 +5,7 @@ curs = conn.cursor()
 
 
 curs.execute('''
-SELECT * FROM tweets order by (favorite_count + retweet_count) desc
+SELECT * FROM posted_tweets order by (favorite_count + retweet_count) desc
 	'''	)
 names = [f[0] for f in curs.description]
 

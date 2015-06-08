@@ -112,14 +112,13 @@ if os.path.isfile(fileName):
 
 user = api.get_user(screen_name='huskerextra')
 
-#user_name = user.name
-#user_id = user.id
+
 
 #Formulat insert statements.
 conn = sqlite3.connect('iherbie.db')
 curs = conn.cursor()
 
-query = 'INSERT INTO tweets VALUES(?,?,?,?,?,?,?)'
+query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?)'
 
 for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
 	vals = [repr(str(user.name.encode('utf-8'))), repr(str(status.text.encode('utf-8'))), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
@@ -138,11 +137,29 @@ for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
 	curs.execute(query, vals)
 
 conn.commit()
+
+#Execute the rowcount query, use rowcount attribute. If 0, execute insert query
+# and use praw to make reddit post.
+search_query = '''SELECT COUNT(*) Post_Count FROM posted_tweets 
+						where handle = ? 
+						and status = ?
+						and date_posted = ? '''
+
+
+vals = [repr(str(user.name.encode('utf-8'))), repr(str(tweets_list[0].text.encode('utf-8'))), repr(str(extract_link(tweets_list[0].text.encode('utf-8')))), int(tweets_list[0].favorite_count), int(tweets_list[0].retweet_count), repr(str(tweets_list[0].created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
+
+curs.execute(search_query, [vals[0], vals[1], vals[5]])
+
+posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?)'
+
+post_count = (curs.fetchone())[0]
+if post_count == 0:
+	curs.execute(posted_tweets_query, vals)
+else:
+	print 'Already posted!'
+
+
+print post_count
+
+conn.commit()
 conn.close()
-
-
-
-
-#Getting urls to post. cursor Needs to include include_entities=True.
-#ie, teepy.Curosr(api.user_timeline, user.id, include_entities=True):
-#Then temp_list[0].entities['urls'][0]['expanded_url']

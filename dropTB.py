@@ -5,7 +5,7 @@ curs = conn.cursor()
 
 
 curs.execute('''
-	DROP TABLE tweets
+	DROP TABLE posted_tweets
 	''')
 
 conn.commit()
