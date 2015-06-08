@@ -1,3 +1,5 @@
+#!user/bin/env python
+
 import tweepy
 import re
 import os.path
