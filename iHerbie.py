@@ -120,46 +120,48 @@ user = api.get_user(screen_name='huskerextra')
 conn = sqlite3.connect('iherbie.db')
 curs = conn.cursor()
 
-query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?)'
+query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?,?)'
 
 for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
-	vals = [repr(str(user.name.encode('utf-8'))), repr(str(status.text.encode('utf-8'))), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
-	
+	tweetVals = [repr(str(user.name.encode('utf-8'))), repr(str(status.text.encode('utf-8'))), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(status.id_str)]
+
 	print status.text.encode('utf-8')
 	print status.created_at
 	print status.favorite_count
 	print status.retweet_count
 	print status.source
 	print extract_link(status.text.encode('utf-8'))
+	print str(status.id_str)
 	print '\n\n\n'
 	print query
-	print vals
+	print tweetVals
 	print '\n\n\n'
 
-	curs.execute(query, vals)
+	curs.execute(query, tweetVals)
 
 conn.commit()
 
 #Execute the rowcount query, use rowcount attribute. If 0, execute insert query
 # and use praw to make reddit post.
-search_query = '''SELECT COUNT(*) Post_Count FROM posted_tweets 
-						where handle = ? 
+search_query = '''SELECT COUNT(*) Post_Count FROM posted_tweets
+						where handle = ?
 						and status = ?
 						and date_posted = ? '''
 
 
-vals = [repr(str(user.name.encode('utf-8'))), repr(str(tweets_list[0].text.encode('utf-8'))), repr(str(extract_link(tweets_list[0].text.encode('utf-8')))), int(tweets_list[0].favorite_count), int(tweets_list[0].retweet_count), repr(str(tweets_list[0].created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
+postedVals = [repr(str(user.name.encode('utf-8'))), repr(str(tweets_list[0].text.encode('utf-8'))), repr(str(extract_link(tweets_list[0].text.encode('utf-8')))), int(tweets_list[0].favorite_count), int(tweets_list[0].retweet_count), repr(str(tweets_list[0].created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
 
-curs.execute(search_query, [vals[0], vals[1], vals[5]])
+curs.execute(search_query, [postedVals[0], postedVals[1], postedVals[5]])
 
 posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?)'
 
 post_count = (curs.fetchone())[0]
 if post_count == 0:
-	curs.execute(posted_tweets_query, vals)
+	curs.execute(posted_tweets_query, postedVals)
+	print 'URL: ' + 'https://twitter.com/statuses/' + str(tweetVals[7])
 else:
 	print 'Already posted!'
-
+	print 'URL: ' + 'https://twitter.com/statuses/' + str(tweetVals[7])
 
 print post_count
 
