@@ -62,11 +62,11 @@ tweets_list = get_tweets('huskerextra', api, tweets_list)
 tweets_list = sorted(tweets_list, key = getKey, reverse=True)
 
 for t in tweets_list:
-	print t.text.encode('utf-8')
-	print t.created_at
-	print t.entities
-	print (t.favorite_count + t.retweet_count)
-	print '\n'
+	print(t.text.encode('utf-8'))
+	print(t.created_at)
+	print( t.entities)
+	print(t.favorite_count + t.retweet_count)
+	print('\n')
 
 if not os.path.isfile(fileName):
 	f = open(fileName, 'w')
@@ -78,10 +78,10 @@ else:
 	f.close()
 
 	if line == tweets_list[0].text.encode('utf-8'):
-		print 'This comparison works'
+		print('This comparison works')
 	else:
-		print 'The comparison failed'
-		print line
+		print('The comparison failed')
+		print(line)
 
 #print tweets_list[0].text.encode('utf-8')
 
@@ -102,7 +102,7 @@ if os.path.isfile(fileName):
 		UrlFile = open(postFileName, 'a+')
 		try:
 			UrlFile.write(tweets_list[0].entities['urls'][0]['expanded_url'])
-		except Exception, e:
+		except(Exception, e):
 			raise e
 		finally:
 			UrlFile.close()
@@ -125,17 +125,17 @@ query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?,?)'
 for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
 	tweetVals = [repr(str(user.name.encode('utf-8'))), repr(str(status.text.encode('utf-8'))), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(status.id_str)]
 
-	print status.text.encode('utf-8')
-	print status.created_at
-	print status.favorite_count
-	print status.retweet_count
-	print status.source
-	print extract_link(status.text.encode('utf-8'))
-	print str(status.id_str)
-	print '\n\n\n'
-	print query
-	print tweetVals
-	print '\n\n\n'
+	print(status.text.encode('utf-8'))
+	print(status.created_at)
+	print(status.favorite_count)
+	print(status.retweet_count)
+	print(status.source)
+	print(extract_link(status.text.encode('utf-8')))
+	print(str(status.id_str))
+	print('\n\n\n')
+	print(query)
+	print(tweetVals)
+	print('\n\n\n')
 
 	curs.execute(query, tweetVals)
 
@@ -155,15 +155,21 @@ curs.execute(search_query, [postedVals[0], postedVals[1], postedVals[5]])
 
 posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?)'
 
+
+#This section needs refractored.
+#Create method to decide if a new tweet should be posted.
+#Use select query. Check posts from current date with above 5 popularity.
+#Need to iterate through days post, stop when one is found. Only select posts with date posted > current date.
+
 post_count = (curs.fetchone())[0]
 if post_count == 0:
 	curs.execute(posted_tweets_query, postedVals)
-	print 'URL: ' + 'https://twitter.com/statuses/' + str(tweetVals[7])
+	print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
 else:
-	print 'Already posted!'
-	print 'URL: ' + 'https://twitter.com/statuses/' + str(tweetVals[7])
+	print('Already posted!')
+	print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
 
-print post_count
+print(post_count)
 
 conn.commit()
 conn.close()

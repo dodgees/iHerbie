@@ -10,7 +10,8 @@ curs = conn.cursor()
 #	''')
 
 curs.execute('''
-CREATE TABLE posted_tweets (
+CREATE TABLE tweets (
+    id		TEXT,
 	handle		TEXT,
 	status	TEXT,
 	link 	TEXT,
@@ -18,7 +19,7 @@ CREATE TABLE posted_tweets (
 	retweet_count	INTEGER,
 	date_posted	TEXT,
 	date_saved 	TEXT,
-	PRIMARY KEY (handle, status, date_posted)
+	PRIMARY KEY (id)
 	)
 	'''	)
 
