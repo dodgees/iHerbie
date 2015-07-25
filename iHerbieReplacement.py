@@ -1,10 +1,9 @@
 #!user/bin/env python
 
 import tweepy
-import re
-import os.path
 import sqlite3
 import datetime
+import ConfigParser
 
 ## Key to allow a list of tweets to be sorted by favorite_count + retweet_count.
 def getKey(item):
@@ -24,11 +23,23 @@ def get_tweets(handle, a, t_list, numOfItems=10):
 tweets_list = []
 
 ## Should create a separate file with getter methods to get these keys. Keep in a gitIgnore file, so it can be stored publicly on github. Check on best practices here.
+Config = ConfigParser.ConfigParser()
+
+Config.read("configFile.ini")
+
+consumer_key = Config.get('Twitter', 'consumer_key')
+consumer_secret = Config.get('Twitter', 'consumer_secret')
+
+access_token = Config.get('Twitter', 'access_token')
+access_token_secret = Config.get('Twitter', 'access_token_secret')
+
+'''
 consumer_key = 'GVhC6Y6131iTYistRrKtXKNOV'
 consumer_secret = 'bDf5K7TeGKNWZmmIpxj3WPK5GZO1rLzM6CEMcDdNBlaEtHTRjd'
 
 access_token = '237425894-ZOQ9y2bgvKpNDiJrVY0iXFZiMe3AXuxm1P4AXVrH'
 access_token_secret = '8MPtV4M28FvgLIyC6Pvi1DVcXjbAQgzlyUT48g7vO4ohj'
+'''
 
 auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_token, access_token_secret)
