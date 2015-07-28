@@ -4,52 +4,57 @@ import tweepy
 import sqlite3
 import datetime
 import ConfigParser
+import praw
 
-## Key to allow a list of tweets to be sorted by favorite_count + retweet_count.
+
 def getKey(item):
+    '''Key to allow a list of tweets to be sorted by favorite_count plus retweet_count.'''
     return item.favorite_count + item.retweet_count
 
-## Grabs the tweets from a given handle. Default tweets from a handle is 10.
-def get_tweets(handle, a, t_list, numOfItems=10):
-    api = a
-    user = api.get_user(screen_name=handle)
 
-    temp_list = t_list
-    for status in tweepy.Cursor(api.user_timeline, user.id, include_entities=True).items(numOfItems):
-        temp_list.append(status)
+def get_tweets(handle, a, t_list, numOfItems=10):
+    '''Grabs the tweets from a given list of handles. Default tweets from a handle is 10.'''
+    api = a
+    for  h in handle:
+        user = api.get_user(screen_name=h)
+
+        temp_list = t_list
+        for status in tweepy.Cursor(api.user_timeline, user.id, include_entities=True).items(numOfItems):
+            temp_list.append(status)
 
     return temp_list
 
+def getTwitterAPI():
+    '''Returns a twitter api object for use grabbing tweets'''
+    Config = ConfigParser.ConfigParser()
+
+    Config.read("configFile.ini")
+
+    consumer_key = Config.get('Twitter', 'consumer_key')
+    consumer_secret = Config.get('Twitter', 'consumer_secret')
+
+    access_token = Config.get('Twitter', 'access_token')
+    access_token_secret = Config.get('Twitter', 'access_token_secret')
+
+    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+    auth.set_access_token(access_token, access_token_secret)
+    return tweepy.API(auth)
+
+
+#Essentially where the main method would start.
 tweets_list = []
 
 ## Should create a separate file with getter methods to get these keys. Keep in a gitIgnore file, so it can be stored publicly on github. Check on best practices here.
-Config = ConfigParser.ConfigParser()
 
-Config.read("configFile.ini")
+api = getTwitterAPI()
 
-consumer_key = Config.get('Twitter', 'consumer_key')
-consumer_secret = Config.get('Twitter', 'consumer_secret')
-
-access_token = Config.get('Twitter', 'access_token')
-access_token_secret = Config.get('Twitter', 'access_token_secret')
-
-'''
-consumer_key = 'GVhC6Y6131iTYistRrKtXKNOV'
-consumer_secret = 'bDf5K7TeGKNWZmmIpxj3WPK5GZO1rLzM6CEMcDdNBlaEtHTRjd'
-
-access_token = '237425894-ZOQ9y2bgvKpNDiJrVY0iXFZiMe3AXuxm1P4AXVrH'
-access_token_secret = '8MPtV4M28FvgLIyC6Pvi1DVcXjbAQgzlyUT48g7vO4ohj'
-'''
-
-auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_token_secret)
-
-api = tweepy.API(auth)
-
-tweets_list = get_tweets('huskerextra', api, tweets_list)
+#Could call this on multiple twitter accounts, just using this method call.
+#Could change method to use list of twitter handles and reduce back to one call with multiple handles.
+tweets_list = get_tweets(['huskerextra'], api, tweets_list)
 
 tweets_list = sorted(tweets_list, key = getKey, reverse=True)
 
+#Should get rid of user, if we can get this information from tweet list
 user = api.get_user(screen_name='huskerextra')
 
 
@@ -60,6 +65,8 @@ curs = conn.cursor()
 
 query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?,?)'
 
+#Should get rid of status, and tweepy cursor call. Just use tweet_list if possible
+#for t in tweets_list: set tweet values, execute insert
 for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
     tweetVals = [str(status.id_str), repr(str(user.name.encode('utf-8'))), repr(str(status.text.encode('utf-8'))), repr("https://twitter.com/statuses/" + status.id_str), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
     curs.execute(query, tweetVals)
@@ -82,12 +89,14 @@ posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?, ?)'
 
 
 #This section needs refractored.
-#Create method to decide if a new tweet should be posted.
-#Use select query. Check posts from current date with above 5 popularity.
-#Need to iterate through days post, stop when one is found. Only select posts with date posted > current date.
 
 post_count = (curs.fetchone())[0]
 if post_count == 0:
+    r = praw.Reddit(user_agent='iHerbie script')
+    r.login(Config.get('Reddit', 'Username'), Config.get('Reddit', 'Password'))
+    tweet_text = str(tweets_list[0].text.encode('utf-8'))
+    tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
+    r.submit('huskers', tweet_text, url=tweet_url)
     curs.execute(posted_tweets_query, postedVals)
     print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
 else:
