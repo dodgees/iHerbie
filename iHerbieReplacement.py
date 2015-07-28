@@ -1,5 +1,4 @@
 #!user/bin/env python
-
 import tweepy
 import sqlite3
 import datetime
@@ -7,11 +6,9 @@ import ConfigParser
 import praw
 import json
 
-
 def getKey(item):
     '''Key to allow a list of tweets to be sorted by favorite_count plus retweet_count.'''
     return item.favorite_count + item.retweet_count
-
 
 def get_tweets(handle, a, t_list, numOfItems=10):
     '''Grabs the tweets from a given list of handles. Default tweets from a handle is 10.'''
@@ -48,6 +45,21 @@ def getStatusScreenName(s):
     parsed_json = json.loads(json_str)
     return parsed_json['user']['screen_name'].encode('utf-8')
 
+def insertTweets(tweetList, connection):
+    '''Takes a list of tweets and DB connection to insert tweets into the DB'''
+    conn = connection
+    curs = conn.cursor()
+
+    tweets_list = tweetList
+
+    query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?,?)'
+
+    #updated approach to setting tweetVals
+    for t in tweets_list:
+        tweetVals = [str(t.id_str), getStatusScreenName(t), t.text.encode('utf-8'), str("https://twitter.com/statuses/" + t.id_str), int(t.favorite_count), int(t.retweet_count), str(t.created_at), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+        curs.execute(query, tweetVals)
+
+    conn.commit()
 
 def main():
     tweets_list = []
@@ -60,16 +72,7 @@ def main():
 
     #Formulat insert statements.
     conn = sqlite3.connect('iherbie.db')
-    curs = conn.cursor()
-
-    query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?,?)'
-
-    #updated approach to setting tweetVals
-    for t in tweets_list:
-        tweetVals = [str(t.id_str), getStatusScreenName(t), t.text.encode('utf-8'), str("https://twitter.com/statuses/" + t.id_str), int(t.favorite_count), int(t.retweet_count), str(t.created_at), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-        curs.execute(query, tweetVals)
-
-    conn.commit()
+    insertTweets(tweets_list, conn)
 
     #Execute the rowcount query, use rowcount attribute. If 0, execute insert query
     # and use praw to make reddit post.
@@ -77,7 +80,7 @@ def main():
                             where id = ? '''
 
     postedVals = [str(tweets_list[0].id_str), getStatusScreenName(tweets_list[0]), tweets_list[0].text.encode('utf-8'), str('https://twitter.com/statuses/' + tweets_list[0].id_str), int(tweets_list[0].favorite_count), int(tweets_list[0].retweet_count), str(tweets_list[0].created_at), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-
+    curs = conn.cursor()
     curs.execute(search_query, [postedVals[0]])
 
     posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?,?)'
@@ -96,8 +99,6 @@ def main():
     else:
         print('Already posted!')
         print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
-
-    print(post_count)
 
     conn.commit()
     conn.close()
