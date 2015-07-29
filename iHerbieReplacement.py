@@ -57,10 +57,6 @@ def insertTweets(tweetList, connection):
     #updated approach to setting tweetVals
     for t in tweets_list:
         tweetVals = [str(t.id_str), getStatusScreenName(t), repr(t.text.encode('utf-8')), str("https://twitter.com/statuses/" + t.id_str), int(t.favorite_count), int(t.retweet_count), str(t.created_at), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-        for j in tweetVals:
-            print("%s" % str(j))
-        print()
-        print()
         curs.execute(query, tweetVals)
 
     conn.commit()
