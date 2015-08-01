@@ -5,6 +5,10 @@ import datetime
 import ConfigParser
 import praw
 import json
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
+import smtplib
+
 
 def getKey(item):
     '''Key to allow a list of tweets to be sorted by favorite_count plus retweet_count.'''
@@ -24,15 +28,12 @@ def get_tweets(handle, a, t_list, numOfItems=10):
 
 def getTwitterAPI():
     '''Returns a twitter api object for use grabbing tweets'''
-    Config = ConfigParser.ConfigParser()
 
-    Config.read("configFile.ini")
+    consumer_key = getCredential('Twitter', 'consumer_key')
+    consumer_secret = getCredential('Twitter', 'consumer_secret')
 
-    consumer_key = Config.get('Twitter', 'consumer_key')
-    consumer_secret = Config.get('Twitter', 'consumer_secret')
-
-    access_token = Config.get('Twitter', 'access_token')
-    access_token_secret = Config.get('Twitter', 'access_token_secret')
+    access_token = getCredential('Twitter', 'access_token')
+    access_token_secret = getCredential('Twitter', 'access_token_secret')
 
     auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
@@ -61,6 +62,36 @@ def insertTweets(tweetList, connection):
 
     conn.commit()
 
+def sendEmail(subject, text):
+    '''Sends and email to the iHerbieHusker gmail account with the given subject, text'''
+    fromaddr = 'iherbiehusker@gmail.com'
+    toaddr = 'iherbiehusker@gmail.com'
+
+    msg = MIMEMultipart()
+    msg['From'] = fromaddr
+    msg['To'] = toaddr
+    msg['Subject'] = subject
+
+    email_password = getCredential('Email', 'Password')
+    body = text
+    msg.attach(MIMEText(body, 'plain'))
+
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.ehlo()
+    server.starttls()
+    server.ehlo()
+    server.login("iherbiehusker", email_password)
+    text = msg.as_string()
+    server.sendmail(fromaddr, toaddr, text)
+
+
+def getCredential(area, key):
+    '''Return the requensted credential from the config file'''
+    Config = ConfigParser.ConfigParser()
+    Config.read("configFile.ini")
+    return Config.get(area, key)
+
+
 def main():
     tweets_list = []
 
@@ -86,22 +117,30 @@ def main():
     posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?,?)'
 
 
-    #This section needs refractored.
+    #Setting post variables.
     post_count = (curs.fetchone())[0]
-    if post_count == 0:
-        Config = ConfigParser.ConfigParser()
-        Config.read("configFile.ini")
+    tweet_text = str(tweets_list[0].text.encode('utf-8'))
+    tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
 
+
+    if post_count == 0:
+        #login to reddit and submit post.
         r = praw.Reddit(user_agent='iHerbie script')
-        r.login(Config.get('Reddit', 'Username'), Config.get('Reddit', 'Password'))
-        tweet_text = str(tweets_list[0].text.encode('utf-8'))
-        tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
+        r.login(getCredential('Reddit', 'Username'), getCredential('Reddit', 'Password'))
         r.submit('huskers', tweet_text, url=tweet_url)
+
         curs.execute(posted_tweets_query, postedVals)
-        print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
+
+        subject = "iHerbie posted successfully!"
+        msg = "URL: " + tweet_url + "\nText: " + tweet_text
+        sendEmail(subject, msg)
+
+        #print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
     else:
-        print('Already posted!')
-        print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
+        #Send failure notice
+        subject = "iHerbie did not post a new tweet."
+        msg = "URL: " + tweet_url + "\nText: " + tweet_text
+        sendEmail(subject, msg)
 
     conn.commit()
     conn.close()
