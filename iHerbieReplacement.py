@@ -8,7 +8,7 @@ import json
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 import smtplib
-
+import logging
 
 def getKey(item):
     '''Key to allow a list of tweets to be sorted by favorite_count plus retweet_count.'''
@@ -93,16 +93,20 @@ def getCredential(area, key):
 
 
 def main():
+    #setup logging
+    logfile = 'iHerbieLog' + str(datetime.date.today().weekday()) + '.txt'
+    logging.basicConfig(filename=logfile, format='[%(asctime)s]%(levelname)s:%(message)s', level=logging.INFO)
+
+
     tweets_list = []
-
     api = getTwitterAPI()
-
     tweets_list = get_tweets(['huskerextra', 'OWHbigred'], api, tweets_list)
-
     tweets_list = sorted(tweets_list, key = getKey, reverse=True)
 
+    logging.info('Connecting to the database.')
     #Formulat insert statements.
     conn = sqlite3.connect('iherbie.db')
+    logging.info('Inserting tweets.')
     insertTweets(tweets_list, conn)
 
     #Execute the rowcount query, use rowcount attribute. If 0, execute insert query
@@ -118,6 +122,7 @@ def main():
 
 
     #Setting post variables.
+    logging.info('Checking if tweet was previously posted.')
     post_count = (curs.fetchone())[0]
     tweet_text = str(tweets_list[0].text.encode('utf-8'))
     tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
@@ -125,8 +130,10 @@ def main():
 
     if post_count == 0:
         #login to reddit and submit post.
+        logging.info('Logging into Reddit.')
         r = praw.Reddit(user_agent='iHerbie script')
         r.login(getCredential('Reddit', 'Username'), getCredential('Reddit', 'Password'))
+        logging.info('Post submitted.')
         r.submit('huskers', tweet_text, url=tweet_url)
 
         curs.execute(posted_tweets_query, postedVals)
@@ -134,6 +141,7 @@ def main():
         subject = "iHerbie posted successfully!"
         msg = "URL: " + tweet_url + "\nText: " + tweet_text
         sendEmail(subject, msg)
+        logging.info('Success email sent.')
 
         #print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
     else:
@@ -141,6 +149,7 @@ def main():
         subject = "iHerbie did not post a new tweet."
         msg = "URL: " + tweet_url + "\nText: " + tweet_text
         sendEmail(subject, msg)
+        logging.info('Failure email sent.')
 
     conn.commit()
     conn.close()
