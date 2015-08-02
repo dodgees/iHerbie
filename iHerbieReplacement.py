@@ -141,6 +141,7 @@ def main():
         subject = "iHerbie posted successfully!"
         msg = "URL: " + tweet_url + "\nText: " + tweet_text
         sendEmail(subject, msg)
+        logging.info(msg)
         logging.info('Success email sent.')
 
         #print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
