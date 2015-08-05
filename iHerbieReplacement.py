@@ -9,6 +9,7 @@ from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
 import smtplib
 import logging
+import re
 
 def getKey(item):
     '''Key to allow a list of tweets to be sorted by favorite_count plus retweet_count.'''
@@ -21,10 +22,35 @@ def get_tweets(handle, a, t_list, numOfItems=10):
         user = api.get_user(screen_name=h)
 
         temp_list = t_list
-        for status in tweepy.Cursor(api.user_timeline, user.id, include_entities=True).items(numOfItems):
+        for status in tweepy.Cursor(api.user_timeline, user.id, include_entities=True, include_rts=True).items(numOfItems):
             temp_list.append(status)
 
     return temp_list
+
+def getStatusById(Id, TwitterAPI):
+    '''Returns a status with given ID'''
+    api = TwitterAPI
+    tweetID = []
+    tweetID.append(Id)
+    status = api.statuses_lookup(tweetID)
+    print(status)
+
+def cleanStatusText(status):
+    '''Takes status text, removes RT notification, @s, #s and URL'''
+    cleanStatus = status
+    #Find and remove retweet text
+    match = re.search(r'RT @\w*:', status)
+    if match:
+        rtPat = match.group()
+        cleanStatus = status.replace(rtPat, '').strip()
+    cleanStatus = cleanStatus.replace('@', '')
+    cleanStatus = cleanStatus.replace('#', '')
+    #Remove urls
+    matchURL = re.findall(r'http[\w./:0-9]*', cleanStatus)
+    for pat in matchURL:
+        cleanStatus = cleanStatus.replace(pat, '')
+    cleanStatus = cleanStatus.strip()
+    return cleanStatus
 
 def getTwitterAPI():
     '''Returns a twitter api object for use grabbing tweets'''
@@ -124,7 +150,7 @@ def main():
     #Setting post variables.
     logging.info('Checking if tweet was previously posted.')
     post_count = (curs.fetchone())[0]
-    tweet_text = str(tweets_list[0].text.encode('utf-8'))
+    tweet_text = cleanStatusText(str(tweets_list[0].text.encode('utf-8')))
     tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
 
 
@@ -134,9 +160,9 @@ def main():
         r = praw.Reddit(user_agent='iHerbie script')
         r.login(getCredential('Reddit', 'Username'), getCredential('Reddit', 'Password'))
         logging.info('Post submitted.')
-        r.submit('huskers', tweet_text, url=tweet_url)
+        #r.submit('huskers', tweet_text, url=tweet_url)
 
-        curs.execute(posted_tweets_query, postedVals)
+        #curs.execute(posted_tweets_query, postedVals)
 
         subject = "iHerbie posted successfully!"
         msg = "URL: " + tweet_url + "\nText: " + tweet_text
