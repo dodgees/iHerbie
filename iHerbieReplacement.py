@@ -18,13 +18,11 @@ def getKey(item):
 def get_tweets(handle, a, t_list, numOfItems=10):
     '''Grabs the tweets from a given list of handles. Default tweets from a handle is 10.'''
     api = a
+    temp_list = t_list
     for  h in handle:
         user = api.get_user(screen_name=h)
-
-        temp_list = t_list
         for status in tweepy.Cursor(api.user_timeline, user.id, include_entities=True, include_rts=True).items(numOfItems):
             temp_list.append(status)
-
     return temp_list
 
 def getStatusById(Id, TwitterAPI):
@@ -33,7 +31,7 @@ def getStatusById(Id, TwitterAPI):
     tweetID = []
     tweetID.append(Id)
     status = api.statuses_lookup(tweetID)
-    print(status)
+    return status
 
 def cleanStatusText(status):
     '''Takes status text, removes RT notification, @s, #s and URL'''
