@@ -160,9 +160,9 @@ def main():
         r = praw.Reddit(user_agent='iHerbie script')
         r.login(getCredential('Reddit', 'Username'), getCredential('Reddit', 'Password'))
         logging.info('Post submitted.')
-        #r.submit('huskers', tweet_text, url=tweet_url)
+        r.submit('huskers', tweet_text, url=tweet_url)
 
-        #curs.execute(posted_tweets_query, postedVals)
+        curs.execute(posted_tweets_query, postedVals)
 
         subject = "iHerbie posted successfully!"
         msg = "URL: " + tweet_url + "\nText: " + tweet_text
