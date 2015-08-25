@@ -10,6 +10,7 @@ from email.MIMEText import MIMEText
 import smtplib
 import logging
 import re
+import urllib
 
 def getKey(item):
     '''Key to allow a list of tweets to be sorted by favorite_count plus retweet_count.'''
@@ -51,6 +52,26 @@ def cleanStatusText(status):
     if cleanStatus[-1] == ':':
         cleanStatus = cleanStatus[:-1]
     return cleanStatus
+
+def findLink(status):
+    """Returns the link in a tweet to be posted instead of twitter link"""
+    link = False
+    try:
+        match2 = re.findall(r'bit.ly[\w./:0-9]*', status)
+        if match2:
+            link = match2[0]
+        #Find full urls
+        match = re.findall(r'http[\w./:0-9]*', status)
+        if match:
+            link = match[0]
+        resp = urllib.urlopen(link)
+        if resp.url:
+            link = resp.url
+        else:
+            link = False
+    except:
+        link = False
+    return link
 
 def getTwitterAPI():
     '''Returns a twitter api object for use grabbing tweets'''
@@ -151,7 +172,11 @@ def main():
     logging.info('Checking if tweet was previously posted.')
     post_count = (curs.fetchone())[0]
     tweet_text = cleanStatusText(str(tweets_list[0].text.encode('utf-8')))
-    tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
+
+    #Set tweet_url to full url if available or link to the tweet otherwise
+    tweet_url = findLink(str(tweets_list[0].text.encode('utf-8')))
+    if not tweet_url:
+        tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
 
 
     if post_count == 0:
