@@ -48,6 +48,8 @@ def cleanStatusText(status):
     for pat in matchURL:
         cleanStatus = cleanStatus.replace(pat, '')
     cleanStatus = cleanStatus.strip()
+    if cleanStatus[-1] == ':':
+        cleanStatus = cleanStatus[:-1]
     return cleanStatus
 
 def getTwitterAPI():
