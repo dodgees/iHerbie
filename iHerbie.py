@@ -1,175 +1,210 @@
 #!user/bin/env python
-
 import tweepy
-import re
-import os.path
 import sqlite3
 import datetime
+import ConfigParser
+import praw
+import json
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
+import smtplib
+import logging
+import re
+import urllib
 
-#import sys
-#sys.path.append('C:\Users\dodge_000\Desktop\iHerbieScripts')
-
-## Key to allow a list of tweets to be sorted by favorite_count + retweet_count.
 def getKey(item):
-	return item.favorite_count + item.retweet_count
+    '''Key to allow a list of tweets to be sorted by favorite_count plus retweet_count.'''
+    return item.favorite_count + item.retweet_count
 
-
-## Used to extract a link from a tweet. Will probably be removed --5/19
-def extract_link(text):
-	#Need to exclude hashtags.
-	regex = r'https?://[^\<>"]+|www\.[^\s<>"]+'
-	match = re.search(regex, text)
-	if match:
-		t = match.group()
-		t = t.split('#')
-		return t[0]
-	return ''
-
-
-## Grabs the tweets from a given handle. Default tweets from a handle is 10.
 def get_tweets(handle, a, t_list, numOfItems=10):
-	api = a
-	user = api.get_user(screen_name=handle)
+    '''Grabs the tweets from a given list of handles. Default tweets from a handle is 10.'''
+    api = a
+    temp_list = t_list
+    for  h in handle:
+        user = api.get_user(screen_name=h)
+        for status in tweepy.Cursor(api.user_timeline, user.id, include_entities=True, include_rts=True).items(numOfItems):
+            temp_list.append(status)
+    return temp_list
 
-	temp_list = t_list
-	for status in tweepy.Cursor(api.user_timeline, user.id, include_entities=True).items(numOfItems):
-		temp_list.append(status)
+def getStatusById(Id, TwitterAPI):
+    '''Returns a status with given ID'''
+    api = TwitterAPI
+    tweetID = []
+    tweetID.append(Id)
+    status = api.statuses_lookup(tweetID)
+    return status
 
-	return temp_list
+def cleanStatusText(status):
+    '''Takes status text, removes RT notification, @s, #s and URL'''
+    cleanStatus = status
+    #Find and remove retweet text
+    match = re.search(r'RT @\w*:', status)
+    if match:
+        rtPat = match.group()
+        cleanStatus = status.replace(rtPat, '').strip()
+    cleanStatus = cleanStatus.replace('@', '')
+    cleanStatus = cleanStatus.replace('#', '')
+    #Remove urls
+    matchURL = re.findall(r'http[\w./:0-9]*', cleanStatus)
+    for pat in matchURL:
+        cleanStatus = cleanStatus.replace(pat, '')
+    cleanStatus = cleanStatus.strip()
+    if cleanStatus[-1] == ':':
+        cleanStatus = cleanStatus[:-1]
+    return cleanStatus
 
-#Function: check_tweet. Params: tweet. Return boolean value to indicate if the tweet should be posted.
-#This function takes a tweet and checks that the tweet has enough favorites and retweets, was posted on the same day and has a url.
+def findLink(status):
+    """Returns the link in a tweet to be posted instead of twitter link"""
+    link = False
+    try:
+        match2 = re.findall(r'bit.ly[\w./:0-9]*', status)
+        if match2:
+            link = match2[0]
+        #Find full urls
+        match = re.findall(r'http[\w./:0-9]*', status)
+        if match:
+            link = match[0]
+        resp = urllib.urlopen(link)
+        if resp.url:
+            link = resp.url
+        else:
+            link = False
+    except:
+        link = False
+    return link
 
-fileName = 'iHerbiePosts.txt'
-postFileName = 'iHerbieUrlPosts.txt'
-tweets_list = []
+def getTwitterAPI():
+    '''Returns a twitter api object for use grabbing tweets'''
 
-## Should create a separate file with getter methods to get these keys. Keep in a gitIgnore file, so it can be stored publicly on github. Check on best practices here.
-consumer_key = 'GVhC6Y6131iTYistRrKtXKNOV'
-consumer_secret = 'bDf5K7TeGKNWZmmIpxj3WPK5GZO1rLzM6CEMcDdNBlaEtHTRjd'
+    consumer_key = getCredential('Twitter', 'consumer_key')
+    consumer_secret = getCredential('Twitter', 'consumer_secret')
 
-access_token = '237425894-ZOQ9y2bgvKpNDiJrVY0iXFZiMe3AXuxm1P4AXVrH'
-access_token_secret = '8MPtV4M28FvgLIyC6Pvi1DVcXjbAQgzlyUT48g7vO4ohj'
+    access_token = getCredential('Twitter', 'access_token')
+    access_token_secret = getCredential('Twitter', 'access_token_secret')
 
+    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+    auth.set_access_token(access_token, access_token_secret)
+    return tweepy.API(auth)
 
-auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_token_secret)
+def getStatusScreenName(status):
+    '''Takes a tweepy status object and returns the screen name associated with that object'''
+    s = status
+    json_str = json.dumps(s._json)
+    parsed_json = json.loads(json_str)
+    return parsed_json['user']['screen_name'].encode('utf-8')
 
-api = tweepy.API(auth)
+def insertTweets(tweetList, connection):
+    '''Takes a list of tweets and DB connection to insert tweets into the DB'''
+    conn = connection
+    curs = conn.cursor()
 
-tweets_list = get_tweets('huskerextra', api, tweets_list)
+    tweets_list = tweetList
 
-tweets_list = sorted(tweets_list, key = getKey, reverse=True)
+    query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?,?)'
 
-for t in tweets_list:
-	print(t.text.encode('utf-8'))
-	print(t.created_at)
-	print( t.entities)
-	print(t.favorite_count + t.retweet_count)
-	print('\n')
+    #updated approach to setting tweetVals
+    for t in tweets_list:
+        tweetVals = [str(t.id_str), getStatusScreenName(t), repr(t.text.encode('utf-8')), str("https://twitter.com/statuses/" + t.id_str), int(t.favorite_count), int(t.retweet_count), str(t.created_at), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+        curs.execute(query, tweetVals)
 
-if not os.path.isfile(fileName):
-	f = open(fileName, 'w')
-	f.write(tweets_list[0].text.encode('utf-8'))
-	f.close()
-else:
-	f = open(fileName, 'r')
-	line = f.readline()
-	f.close()
+    conn.commit()
 
-	if line == tweets_list[0].text.encode('utf-8'):
-		print('This comparison works')
-	else:
-		print('The comparison failed')
-		print(line)
+def sendEmail(subject, text):
+    '''Sends and email to the iHerbieHusker gmail account with the given subject, text'''
+    fromaddr = 'iherbiehusker@gmail.com'
+    toaddr = 'iherbiehusker@gmail.com'
 
-#print tweets_list[0].text.encode('utf-8')
+    msg = MIMEMultipart()
+    msg['From'] = fromaddr
+    msg['To'] = toaddr
+    msg['Subject'] = subject
 
-#Code to post and check tweet using files.
+    email_password = getCredential('Email', 'Password')
+    body = text
+    msg.attach(MIMEText(body, 'plain'))
 
-if os.path.isfile(fileName):
-	f = open(fileName, 'r')
-	lines = f.readlines()
-	f.close()
-
-	newPost = False #True changed to ignore file processing.
-
-	for l in lines:
-		if l == tweets_list[0].text.encode('utf-8'):
-			newPost = False
-
-	if newPost:
-		UrlFile = open(postFileName, 'a+')
-		try:
-			UrlFile.write(tweets_list[0].entities['urls'][0]['expanded_url'])
-		except(Exception, e):
-			raise e
-		finally:
-			UrlFile.close()
-
-#print tweets_list[0].url
-##public_tweets = api.home_timeline()
-##for tweet in public_tweets:
-##	print tweet.text.encode('utf-8')
-
-user = api.get_user(screen_name='huskerextra')
-
-
-
-#Formulat insert statements.
-conn = sqlite3.connect('iherbie.db')
-curs = conn.cursor()
-
-query = 'INSERT OR REPLACE INTO tweets VALUES(?,?,?,?,?,?,?,?)'
-
-for status in tweepy.Cursor(api.user_timeline, user.id).items(10):
-	tweetVals = [repr(str(user.name.encode('utf-8'))), repr(str(status.text.encode('utf-8'))), repr(str(extract_link(status.text.encode('utf-8')))), int(status.favorite_count), int(status.retweet_count), repr(str(status.created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(status.id_str)]
-
-	print(status.text.encode('utf-8'))
-	print(status.created_at)
-	print(status.favorite_count)
-	print(status.retweet_count)
-	print(status.source)
-	print(extract_link(status.text.encode('utf-8')))
-	print(str(status.id_str))
-	print('\n\n\n')
-	print(query)
-	print(tweetVals)
-	print('\n\n\n')
-
-	curs.execute(query, tweetVals)
-
-conn.commit()
-
-#Execute the rowcount query, use rowcount attribute. If 0, execute insert query
-# and use praw to make reddit post.
-search_query = '''SELECT COUNT(*) Post_Count FROM posted_tweets
-						where handle = ?
-						and status = ?
-						and date_posted = ? '''
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.ehlo()
+    server.starttls()
+    server.ehlo()
+    server.login("iherbiehusker", email_password)
+    text = msg.as_string()
+    server.sendmail(fromaddr, toaddr, text)
 
 
-postedVals = [repr(str(user.name.encode('utf-8'))), repr(str(tweets_list[0].text.encode('utf-8'))), repr(str(extract_link(tweets_list[0].text.encode('utf-8')))), int(tweets_list[0].favorite_count), int(tweets_list[0].retweet_count), repr(str(tweets_list[0].created_at)), repr(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))]
+def getCredential(area, key):
+    '''Return the requensted credential from the config file'''
+    Config = ConfigParser.ConfigParser()
+    Config.read("configFile.ini")
+    return Config.get(area, key)
 
-curs.execute(search_query, [postedVals[0], postedVals[1], postedVals[5]])
 
-posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?)'
+def main():
+    #setup logging
+    logfile = 'iHerbieLog' + str(datetime.date.today().weekday()) + '.txt'
+    logging.basicConfig(filename=logfile, format='[%(asctime)s]%(levelname)s:%(message)s', level=logging.INFO)
 
 
-#This section needs refractored.
-#Create method to decide if a new tweet should be posted.
-#Use select query. Check posts from current date with above 5 popularity.
-#Need to iterate through days post, stop when one is found. Only select posts with date posted > current date.
+    tweets_list = []
+    api = getTwitterAPI()
+    tweets_list = get_tweets(['huskerextra', 'OWHbigred'], api, tweets_list)
+    tweets_list = sorted(tweets_list, key = getKey, reverse=True)
 
-post_count = (curs.fetchone())[0]
-if post_count == 0:
-	curs.execute(posted_tweets_query, postedVals)
-	print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
-else:
-	print('Already posted!')
-	print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
+    logging.info('Connecting to the database.')
+    #Formulat insert statements.
+    conn = sqlite3.connect('iherbie.db')
+    logging.info('Inserting tweets.')
+    insertTweets(tweets_list, conn)
 
-print(post_count)
+    #Execute the rowcount query, use rowcount attribute. If 0, execute insert query
+    # and use praw to make reddit post.
+    search_query = '''SELECT COUNT(*) Post_Count FROM posted_tweets
+                            where id = ? '''
 
-conn.commit()
-conn.close()
+    postedVals = [str(tweets_list[0].id_str), getStatusScreenName(tweets_list[0]), repr(tweets_list[0].text.encode('utf-8')), str('https://twitter.com/statuses/' + tweets_list[0].id_str), int(tweets_list[0].favorite_count), int(tweets_list[0].retweet_count), str(tweets_list[0].created_at), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+    curs = conn.cursor()
+    curs.execute(search_query, [postedVals[0]])
+
+    posted_tweets_query = 'INSERT INTO posted_tweets VALUES(?,?,?,?,?,?,?,?)'
+
+
+    #Setting post variables.
+    logging.info('Checking if tweet was previously posted.')
+    post_count = (curs.fetchone())[0]
+    tweet_text = cleanStatusText(str(tweets_list[0].text.encode('utf-8')))
+
+    #Set tweet_url to full url if available or link to the tweet otherwise
+    tweet_url = findLink(str(tweets_list[0].text.encode('utf-8')))
+    if not tweet_url:
+        tweet_url = 'https://twitter.com/statuses/' + str(tweets_list[0].id_str)
+
+
+    if post_count == 0:
+        #login to reddit and submit post.
+        logging.info('Logging into Reddit.')
+        r = praw.Reddit(user_agent='iHerbie script')
+        r.login(getCredential('Reddit', 'Username'), getCredential('Reddit', 'Password'))
+        logging.info('Post submitted.')
+        r.submit('huskers', tweet_text, url=tweet_url)
+
+        curs.execute(posted_tweets_query, postedVals)
+
+        subject = "iHerbie posted successfully!"
+        msg = "URL: " + tweet_url + "\nText: " + tweet_text
+        sendEmail(subject, msg)
+        logging.info(msg)
+        logging.info('Success email sent.')
+
+        #print('URL: ' + 'https://twitter.com/statuses/' + str(tweets_list[0].id_str))
+    else:
+        #Send failure notice
+        subject = "iHerbie did not post a new tweet."
+        msg = "URL: " + tweet_url + "\nText: " + tweet_text
+        sendEmail(subject, msg)
+        logging.info('Failure email sent.')
+
+    conn.commit()
+    conn.close()
+
+if __name__ == '__main__':
+    main()

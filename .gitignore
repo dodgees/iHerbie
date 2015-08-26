@@ -6,6 +6,15 @@ ehthumbs.db
 Desktop.ini
 configFile.ini
 
+# Log files
+iHerbieLog0.txt
+iHerbieLog1.txt
+iHerbieLog2.txt
+iHerbieLog3.txt
+iHerbieLog4.txt
+iHerbieLog5.txt
+iHerbieLog6.txt
+
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
 
